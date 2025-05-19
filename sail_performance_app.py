@@ -6,6 +6,7 @@ import matplotlib.cm as cm
 from datetime import datetime
 from PIL import Image
 import os
+from streamlit_cropper import st_cropper
 
 st.title("Sailboat Performance & Trim Visualizer")
 
@@ -66,7 +67,7 @@ def extract_timestamp_from_filename(filename):
         return None
 
 if data_file and image_files:
-    st.subheader("Trim Images Matched to Closest Data Point")
+    st.subheader("Trim Images Matched to Closest Data Point + Cropping")
 
     for img_file in image_files:
         timestamp = extract_timestamp_from_filename(img_file.name)
@@ -74,7 +75,12 @@ if data_file and image_files:
             idx = (df["timestamp"] - timestamp).abs().idxmin()
             row = df.loc[idx]
 
-            st.image(img_file, caption=f"Trim @ {row['timestamp']}")
+            st.markdown(f"#### Original Image: {img_file.name}")
+            image = Image.open(img_file)
+            cropped_image = st_cropper(image, box_color='blue', aspect_ratio=None)
+            st.image(cropped_image, caption="Cropped Image")
+
+            st.write(f"**Trim @ {row['timestamp']}**")
             st.write(f"**Boat Speed**: {row['BSP']} kn")
             st.write(f"**Heel**: {row['Heel']}°")
             st.write(f"**Wind Angle (TWA)**: {row['TWA']}°")
