@@ -69,6 +69,21 @@ def extract_timestamp_from_filename(filename):
 if data_file and image_files:
     st.subheader("Trim Images Matched to Closest Data Point + Cropping")
 
+    # Aspect ratio selector
+    aspect_option = st.selectbox(
+        "Select crop aspect ratio",
+        options=["Free", "1:1", "4:3", "16:9"],
+        index=0
+    )
+
+    aspect_ratio = None
+    if aspect_option == "1:1":
+        aspect_ratio = (1, 1)
+    elif aspect_option == "4:3":
+        aspect_ratio = (4, 3)
+    elif aspect_option == "16:9":
+        aspect_ratio = (16, 9)
+
     for img_file in image_files:
         timestamp = extract_timestamp_from_filename(img_file.name)
         if timestamp:
@@ -77,7 +92,7 @@ if data_file and image_files:
 
             st.markdown(f"#### Original Image: {img_file.name}")
             image = Image.open(img_file)
-            cropped_image = st_cropper(image, box_color='blue', aspect_ratio=None)
+            cropped_image = st_cropper(image, box_color='blue', aspect_ratio=aspect_ratio)
             st.image(cropped_image, caption="Cropped Image")
 
             st.write(f"**Trim @ {row['timestamp']}**")
