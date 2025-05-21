@@ -104,3 +104,23 @@ if data_file and image_files:
             st.markdown("---")
         else:
             st.warning(f"Couldn't extract timestamp from: {img_file.name}")
+
+# Aspect ratio cropper above
+cropped_image = st_cropper(image, box_color='blue', aspect_ratio=aspect_ratio)
+st.image(cropped_image, caption="Cropped Image")
+
+# Add rotate + squash/stretch controls
+st.markdown("### Transform Cropped Image")
+
+rotate_degrees = st.slider("Rotate image (degrees)", min_value=-180, max_value=180, value=0, step=1)
+scale_x = st.slider("Scale X (width)", min_value=0.1, max_value=3.0, value=1.0, step=0.1)
+scale_y = st.slider("Scale Y (height)", min_value=0.1, max_value=3.0, value=1.0, step=0.1)
+
+# Apply transformations
+transformed = cropped_image.rotate(rotate_degrees, expand=True)
+width, height = transformed.size
+new_width = int(width * scale_x)
+new_height = int(height * scale_y)
+transformed = transformed.resize((new_width, new_height), resample=Image.BICUBIC)
+
+st.image(transformed, caption="Transformed Image")
