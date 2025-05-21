@@ -7,15 +7,9 @@ from datetime import datetime
 from PIL import Image
 import os
 from streamlit_cropper import st_cropper
+import numpy as np
 
 st.title("Sailboat Performance & Trim Visualizer")
-
-st.sidebar.subheader("Performance Filter and Options")
-show_wind = st.sidebar.checkbox("Show TWA Arrows", value=False)
-vs_min = st.sidebar.slider("Minimum Vs_perf%", float(df["Vs_perf%"].min()), float(df["Vs_perf%"].max()), float(df["Vs_perf%"].min()))
-vs_max = st.sidebar.slider("Maximum Vs_perf%", float(df["Vs_perf%"].min()), float(df["Vs_perf%"].max()), float(df["Vs_perf%"].max()))
-df_filtered = df[(df["Vs_perf%"] >= vs_min) & (df["Vs_perf%"] <= vs_max)]
-
 
 # Upload data file
 data_file = st.file_uploader("Upload .tsv performance data", type="tsv")
@@ -28,28 +22,62 @@ if data_file:
     # Drop NaNs for relevant columns
     df = df.dropna(subset=["Lat", "Lon", "Vs_perf%"])
 
+    # Sidebar options
+    st.sidebar.subheader("Performance Filter and Options")
+    show_wind = st.sidebar.checkbox("Show TWA Arrows", value=False)
+    vs_min = st.sidebar.slider("Minimum Vs_perf%", float(df["Vs_perf%"].min()), float(df["Vs_perf%"].max()), float(df["Vs_perf%"].min()))
+    vs_max = st.sidebar.slider("Maximum Vs_perf%", float(df["Vs_perf%"].min()), float(df["Vs_perf%"].max()), float(df["Vs_perf%"].max()))
+    df_filtered = df[(df["Vs_perf%"] >= vs_min) & (df["Vs_perf%"] <= vs_max)]
+
     # Plot course with Vs_perf% as color and a slider
     st.subheader("Boat Course Colored by Vs_perf% + Data Point Slider")
 
-    if not df.empty:
-        idx = st.slider("Select data point index", min_value=0, max_value=len(df) - 1, value=0, step=1)
+    if not df_filtered.empty:
+        idx = st.slider("Select data point index", min_value=0, max_value=len(df_filtered) - 1, value=0, step=1)
 
         fig, ax = plt.subplots(figsize=(10, 6))
-        norm = mcolors.Normalize(vmin=df["Vs_perf%"].min(), vmax=df["Vs_perf%"].max())
-        cmap = cm.viridis
 
-        sc = ax.scatter(df["Lon"], df["Lat"], c=df["Vs_perf%"], cmap=cmap, norm=norm, s=10, alpha=0.6)
-        ax.plot(df["Lon"], df["Lat"], color="gray", alpha=0.2, linewidth=0.5)
+        # Custom colormap centered on 100% performance
+        class MidpointNormalize(mcolors.Normalize):
+            def __init__(self, vmin=None, vmax=None, midpoint=None, clip=False):
+                self.midpoint = midpoint
+                super().__init__(vmin, vmax, clip)
 
-        selected = df.iloc[idx]
-        ax.scatter(selected["Lon"], selected["Lat"], color="red", s=50, label=f"Index {idx}")
+            def __call__(self, value, clip=None):
+                result, is_scalar = self.process_value(value)
+                vmin, vmax, midpoint = self.vmin, self.vmax, self.midpoint
+                result = np.ma.masked_array((result - vmin) / (vmax - vmin))
+                result = np.ma.masked_array(np.where(
+                    result <= (midpoint - vmin) / (vmax - vmin),
+                    0.5 * result / ((midpoint - vmin) / (vmax - vmin)),
+                    0.5 + 0.5 * (result - (midpoint - vmin) / (vmax - vmin)) / ((vmax - midpoint) / (vmax - vmin))
+                ))
+                return result
+
+        vmin = df["Vs_perf%"].min()
+        vmax = df["Vs_perf%"].max()
+        midpoint = 100
+        cmap = cm.get_cmap("RdYlGn")
+        norm = MidpointNormalize(vmin=vmin, vmax=vmax, midpoint=midpoint)
+
+        sc = ax.scatter(df_filtered["Lon"], df_filtered["Lat"], c=df_filtered["Vs_perf%"], cmap=cmap, norm=norm, s=10, alpha=0.6)
+        ax.plot(df_filtered["Lon"], df_filtered["Lat"], color="gray", alpha=0.2, linewidth=0.5)
+
+        selected = df_filtered.iloc[idx]
+        ax.scatter(selected["Lon"], selected["Lat"], color="blue", s=50, label=f"Index {idx}")
         ax.legend()
 
         cbar = fig.colorbar(sc, ax=ax, label="Vs_perf%")
+
+        if show_wind:
+            for _, row in df_filtered.iterrows():
+                dx = 0.002 * np.cos(np.radians(row["TWA"]))
+                dy = 0.002 * np.sin(np.radians(row["TWA"]))
+                ax.arrow(row["Lon"], row["Lat"], dx, dy, head_width=0.0005, head_length=0.0005, fc='black', ec='black', alpha=0.4)
+
         ax.set_xlabel("Longitude")
         ax.set_ylabel("Latitude")
-        ax.set_title("Boat Track")
-
+        ax.set_title("Boat Track with Performance Color Map & Wind")
         st.pyplot(fig)
 
         # Show details of selected point
@@ -102,20 +130,14 @@ if data_file and image_files:
             cropped_image = st_cropper(image, box_color='blue', aspect_ratio=aspect_ratio)
             st.image(cropped_image, caption="Cropped Image")
 
-            # Rotate and stretch/squash
             st.markdown("### Transform Cropped Image")
+            rotate_degrees = st.slider("Rotate image (degrees)", -180, 180, 0)
+            scale_x = st.slider("Scale X (width)", 0.1, 3.0, 1.0)
+            scale_y = st.slider("Scale Y (height)", 0.1, 3.0, 1.0)
 
-            rotate_degrees = st.slider("Rotate image (degrees)", min_value=-180, max_value=180, value=0, step=1)
-            scale_x = st.slider("Scale X (width)", min_value=0.1, max_value=3.0, value=1.0, step=0.1)
-            scale_y = st.slider("Scale Y (height)", min_value=0.1, max_value=3.0, value=1.0, step=0.1)
-
-            # Apply transformations
             transformed = cropped_image.rotate(rotate_degrees, expand=True)
-            width, height = transformed.size
-            new_width = int(width * scale_x)
-            new_height = int(height * scale_y)
-            transformed = transformed.resize((new_width, new_height), resample=Image.BICUBIC)
-
+            new_size = (int(transformed.width * scale_x), int(transformed.height * scale_y))
+            transformed = transformed.resize(new_size, resample=Image.BICUBIC)
             st.image(transformed, caption="Transformed Image")
 
             st.write(f"**Trim @ {row['timestamp']}**")
