@@ -14,6 +14,7 @@ st.title("Sailboat Performance & Trim Visualizer")
 # Upload data file
 data_file = st.file_uploader("Upload .tsv performance data", type="tsv")
 if data_file:
+    df = pd.DataFrame()
     df = pd.read_csv(data_file, sep="\\t")
 
     # Combine date and time into a timestamp
