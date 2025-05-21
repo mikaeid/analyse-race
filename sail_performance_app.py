@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import matplotlib.cm as cm
 from datetime import datetime
-from PIL import Image
+from PIL import Image, ImageOps
 import os
 from streamlit_cropper import st_cropper
 
