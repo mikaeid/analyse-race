@@ -10,6 +10,13 @@ from streamlit_cropper import st_cropper
 
 st.title("Sailboat Performance & Trim Visualizer")
 
+st.sidebar.subheader("Performance Filter and Options")
+show_wind = st.sidebar.checkbox("Show TWA Arrows", value=False)
+vs_min = st.sidebar.slider("Minimum Vs_perf%", float(df["Vs_perf%"].min()), float(df["Vs_perf%"].max()), float(df["Vs_perf%"].min()))
+vs_max = st.sidebar.slider("Maximum Vs_perf%", float(df["Vs_perf%"].min()), float(df["Vs_perf%"].max()), float(df["Vs_perf%"].max()))
+df_filtered = df[(df["Vs_perf%"] >= vs_min) & (df["Vs_perf%"] <= vs_max)]
+
+
 # Upload data file
 data_file = st.file_uploader("Upload .tsv performance data", type="tsv")
 if data_file:
